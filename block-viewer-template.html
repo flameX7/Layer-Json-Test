@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Block Viewer</title>
+<title>Minecraft Block Viewer – Textured</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -17,8 +17,6 @@
     height: 100vh;
     position: relative;
   }
-
-  /* ── Arrow Buttons ── */
   .arrow-btn {
     position: absolute;
     top: 50%;
@@ -34,8 +32,6 @@
   .arrow-btn svg { width: 32px; height: 32px; }
   #btn-prev { left: 16px; }
   #btn-next { right: 16px; }
-
-  /* ── Step Counter ── */
   #step-counter {
     position: absolute;
     bottom: 24px;
@@ -47,8 +43,6 @@
     pointer-events: none;
     z-index: 10;
   }
-
-  /* ── Loading ── */
   #loading {
     position: absolute;
     inset: 0;
@@ -73,6 +67,7 @@
   #loading-bar-inner {
     height: 100%;
     width: 0%;
+    background: white;
     transition: width 0.3s;
   }
 </style>
@@ -80,30 +75,22 @@
 <body>
 <div id="container">
   <div id="loading">
-    <div id="loading-text">LOADING</div>
-    <div id="loading-bar-outer">
-      <div id="loading-bar-inner"></div>
-    </div>
+    <div id="loading-text">LOADING TEXTURES</div>
+    <div id="loading-bar-outer"><div id="loading-bar-inner"></div></div>
   </div>
-
   <button class="arrow-btn" id="btn-prev" disabled>
-    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="15 18 9 12 15 6"></polyline>
     </svg>
   </button>
-
   <button class="arrow-btn" id="btn-next">
-    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="9 18 15 12 9 6"></polyline>
     </svg>
   </button>
-
   <div id="step-counter">1 / 1</div>
 </div>
 
-<!-- ================================================================
-  THREE.JS — Do not edit
-================================================================ -->
 <script type="importmap">
 {
   "imports": {
@@ -118,158 +105,91 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ================================================================
-//  ✏️  EDIT THIS SECTION FOR EVERY NEW PROJECT
+//  ✏️  CONFIGURATION – EDIT THIS SECTION
 // ================================================================
 
-// 1. Your GitHub Pages base URL
-//    Format: https://YOUR-USERNAME.github.io/YOUR-REPO-NAME/
+// Your JSON data file (same as before)
 const BASE_URL = 'https://flamex7.github.io/Layer-Json-Test/';
-
-// 2. Your exported JSON block data file name
 const DATA_FILE = 'slime_rocket.json';
-
-// 3. Total number of layers (copy from extractor script output)
-//    The extractor will tell you this after running
-const TOTAL_LAYERS = 15;
-
-// 4. Layer mode:
-//    'cumulative' — each step adds a layer on top (recommended)
-//    'single'     — shows only the current layer
-const LAYER_MODE = 'cumulative';
-
-// 5. Camera starting position
-//    Increase z to zoom out, increase y to look more from above
+const TOTAL_LAYERS = 15;          // from your extractor
+const LAYER_MODE = 'cumulative';   // 'cumulative' or 'single'
 const CAMERA_POSITION = { x: 8, y: 10, z: 16 };
-
-// 6. Camera target — center point the camera looks at
-//    Adjust y if your build is very tall
 const CAMERA_TARGET = { x: 0, y: 3, z: 0 };
 
-// ================================================================
-//  🎨  COLORS — Edit these to customize the viewer appearance
-//  All values are hex color strings e.g. '#ffffff'
-//  Opacity is 0.0 (invisible) to 1.0 (fully visible)
-// ================================================================
+// ─── TEXTURE ATLAS SETUP ──────────────────────────────────────
+// 1. URL to your texture atlas image (must support CORS)
+const ATLAS_URL = 'https://your-server.com/minecraft_atlas.png';
+// 2. Size of each block texture in the atlas (usually 16 or 32)
+const TEXTURE_SIZE = 16;
+// 3. Total width/height of the atlas (in pixels)
+const ATLAS_WIDTH = 256;
+const ATLAS_HEIGHT = 256;
 
-const COLORS = {
+// 4. Texture mapping: map each block ID to pixel coordinates (top-left) inside the atlas
+const TEXTURE_MAP = {
+  // Vanilla blocks (example coordinates – adjust to your atlas!)
+  'slime_block':      { u: 0,   v: 0,   w: 16, h: 16 },
+  'sticky_piston':    { u: 16,  v: 0,   w: 16, h: 16 },
+  'piston':           { u: 32,  v: 0,   w: 16, h: 16 },
+  'observer':         { u: 48,  v: 0,   w: 16, h: 16 },
+  'redstone_block':   { u: 64,  v: 0,   w: 16, h: 16 },
+  'stone':            { u: 80,  v: 0,   w: 16, h: 16 },
+  'cobblestone':      { u: 96,  v: 0,   w: 16, h: 16 },
+  'oak_planks':       { u: 112, v: 0,   w: 16, h: 16 },
+  'glass':            { u: 128, v: 0,   w: 16, h: 16 },
+  'iron_block':       { u: 144, v: 0,   w: 16, h: 16 },
+  'gold_block':       { u: 160, v: 0,   w: 16, h: 16 },
+  'diamond_block':    { u: 176, v: 0,   w: 16, h: 16 },
+  'dirt':             { u: 192, v: 0,   w: 16, h: 16 },
+  'grass_block':      { u: 208, v: 0,   w: 16, h: 16 },
+  'sand':             { u: 224, v: 0,   w: 16, h: 16 },
+  // Create mod blocks – add your own entries
+  'create/cogwheel':  { u: 0,   v: 16,  w: 16, h: 16 },
+  'create/shaft':     { u: 16,  v: 16,  w: 16, h: 16 },
+  // ... add more as needed
+};
 
-  // ── Arrow buttons ──
-  arrow: {
-    color:   '#ffffff',   // ✏️ Arrow color
-    opacity:  0.7,        // ✏️ Arrow opacity (0.0 - 1.0)
-    thickness: 1.5,       // ✏️ Arrow stroke thickness in px
-  },
+// Fallback color for blocks without a texture mapping
+const FALLBACK_COLOR = '#888888';
 
-  // ── Step counter text (e.g. "1 / 6") ──
-  text: {
-    color:   '#ffffff',   // ✏️ Text color
-    opacity:  0.7,        // ✏️ Text opacity (0.0 - 1.0)
-  },
-
-  // ── Loading text and bar ──
-  loading: {
-    color:   '#ffffff',   // ✏️ Loading text color
-    opacity:  0.6,        // ✏️ Loading opacity (0.0 - 1.0)
-  },
-
-  // ── Floor grid ──
-  grid: {
-    color:   '#ffffff',   // ✏️ Grid line color
-    opacity:  0.12,       // ✏️ Grid opacity (0.0 - 1.0)
-  },
-
+// UI Colors (optional)
+const UI_COLORS = {
+  arrow: '#ffffff',
+  text:  '#ffffff',
+  grid:  '#ffffff',
 };
 
 // ================================================================
-//  🟦  BLOCK COLORS — Fallback colors for blocks without textures
-//  Format: 'block_id': '#hexcolor'
-//  Add Create mod blocks here with custom colors
+//  🛠️  GENERATE A DEBUG ATLAS (if you don't have a real one)
 // ================================================================
-
-const BLOCK_COLORS = {
-  // ── Vanilla blocks ──
-  'slime_block':         '#7cc25a',
-  'sticky_piston':       '#8b7355',
-  'piston':              '#8b7355',
-  'piston_head':         '#8b7355',
-  'observer':            '#4a4a4a',
-  'redstone_wire':       '#cc0000',
-  'redstone_block':      '#cc0000',
-  'stone':               '#888888',
-  'cobblestone':         '#777777',
-  'oak_planks':          '#c4a055',
-  'oak_log':             '#6b4f2a',
-  'glass':               '#aaddff',
-  'iron_block':          '#d4d4d4',
-  'gold_block':          '#f5c542',
-  'diamond_block':       '#4dd9e0',
-  'obsidian':            '#1a0a2e',
-  'dirt':                '#8b5e3c',
-  'grass_block':         '#5a8a3c',
-  'sand':                '#e2c97e',
-  'gravel':              '#888070',
-  'barrel':              '#8b6914',
-  'chest':               '#a0762a',
-  'furnace':             '#777777',
-  'crafting_table':      '#8b6914',
-
-  // ── Create mod blocks ──
-  // ✏️ Add your Create mod blocks here with approximate colors
-  'create/cogwheel':              '#c8a96e',
-  'create/large_cogwheel':        '#c8a96e',
-  'create/shaft':                 '#b8925a',
-  'create/mechanical_piston':     '#8b7355',
-  'create/mechanical_pump':       '#8b7355',
-  'create/fluid_pipe':            '#888888',
-  'create/andesite_casing':       '#888888',
-  'create/brass_casing':          '#c8a040',
-  'create/copper_casing':         '#c87040',
-  'create/creative_motor':        '#4488cc',
-  'create/deployer':              '#8b7355',
-  'create/mechanical_arm':        '#c8a040',
-  'create/belt':                  '#4a3520',
-  'create/chute':                 '#888888',
-  'create/funnel':                '#888888',
-  'create/depot':                 '#888888',
-  'create/basin':                 '#888888',
-  'create/mixer':                 '#888888',
-  'create/blaze_burner':          '#cc4400',
-
-  // ✏️ Default color for any block not listed above
-  'default':                      '#888888',
-};
-
-// ================================================================
-//  ⚙️  SCENE SETUP — No need to edit below
-// ================================================================
-
-// Apply colors to UI elements
-function applyUIColors() {
-  // Arrows
-  const arrows = document.querySelectorAll('.arrow-btn svg');
-  arrows.forEach(svg => {
-    svg.setAttribute('stroke', COLORS.arrow.color);
-    svg.setAttribute('stroke-width', COLORS.arrow.thickness);
-    svg.style.opacity = COLORS.arrow.opacity;
-  });
-
-  // Step counter
-  const counter = document.getElementById('step-counter');
-  counter.style.color = COLORS.text.color;
-  counter.style.opacity = COLORS.text.opacity;
-
-  // Loading
-  const loadingText = document.getElementById('loading-text');
-  loadingText.style.color = COLORS.loading.color;
-  loadingText.style.opacity = COLORS.loading.opacity;
-
-  const loadingBar = document.getElementById('loading-bar-inner');
-  loadingBar.style.background = COLORS.loading.color;
+function generateDebugAtlas() {
+  const canvas = document.createElement('canvas');
+  canvas.width = ATLAS_WIDTH;
+  canvas.height = ATLAS_HEIGHT;
+  const ctx = canvas.getContext('2d');
+  // Fill with a checkerboard pattern
+  ctx.fillStyle = '#333';
+  ctx.fillRect(0, 0, ATLAS_WIDTH, ATLAS_HEIGHT);
+  for (let y = 0; y < ATLAS_HEIGHT; y += TEXTURE_SIZE) {
+    for (let x = 0; x < ATLAS_WIDTH; x += TEXTURE_SIZE) {
+      ctx.fillStyle = ((x + y) / TEXTURE_SIZE) % 2 === 0 ? '#5a5a5a' : '#7a7a7a';
+      ctx.fillRect(x, y, TEXTURE_SIZE, TEXTURE_SIZE);
+      ctx.strokeStyle = '#aaa';
+      ctx.strokeRect(x, y, TEXTURE_SIZE, TEXTURE_SIZE);
+    }
+  }
+  // Write block IDs for debugging (optional)
+  for (const [id, { u, v }] of Object.entries(TEXTURE_MAP)) {
+    ctx.fillStyle = 'white';
+    ctx.font = '10px monospace';
+    ctx.fillText(id.slice(0, 4), u + 2, v + 12);
+  }
+  return new THREE.CanvasTexture(canvas);
 }
 
-applyUIColors();
-
-// Renderer
+// ================================================================
+//  SCENE SETUP
+// ================================================================
 const container = document.getElementById('container');
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setClearColor(0x000000, 0);
@@ -278,19 +198,11 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 container.appendChild(renderer.domElement);
 
-// Scene
 const scene = new THREE.Scene();
 
-// Camera
-const camera = new THREE.PerspectiveCamera(
-  45,
-  container.clientWidth / container.clientHeight,
-  0.1,
-  1000
-);
+const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
 camera.position.set(CAMERA_POSITION.x, CAMERA_POSITION.y, CAMERA_POSITION.z);
 
-// Controls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
@@ -302,65 +214,108 @@ controls.update();
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
 scene.add(ambientLight);
-
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
 dirLight.position.set(10, 20, 10);
 dirLight.castShadow = true;
 scene.add(dirLight);
-
 const fillLight = new THREE.DirectionalLight(0xaabbff, 0.2);
 fillLight.position.set(-10, 5, -10);
 scene.add(fillLight);
 
-// Grid floor
-const gridColor = new THREE.Color(COLORS.grid.color);
-const gridHelper = new THREE.GridHelper(32, 32, gridColor, gridColor);
-gridHelper.material.opacity = COLORS.grid.opacity;
+// Floor grid
+const gridHelper = new THREE.GridHelper(32, 32, UI_COLORS.grid, UI_COLORS.grid);
 gridHelper.material.transparent = true;
+gridHelper.material.opacity = 0.12;
 gridHelper.position.y = -0.01;
 scene.add(gridHelper);
 
 // ================================================================
-//  📦  BLOCK RENDERING
+//  TEXTURED BLOCK MATERIAL
 // ================================================================
+let atlasTexture = null;
+const materialCache = new Map(); // blockId -> Material
 
-// Geometry shared across all blocks — one cube
-const blockGeo = new THREE.BoxGeometry(1, 1, 1);
-
-// Material cache — reuse materials for same block type
-const materialCache = {};
-
-function getBlockColor(blockId) {
-  if (BLOCK_COLORS[blockId]) return BLOCK_COLORS[blockId];
-  if (BLOCK_COLORS['default']) return BLOCK_COLORS['default'];
-  return '#888888';
+function getUVsForBlock(blockId) {
+  const rect = TEXTURE_MAP[blockId];
+  if (!rect) return null;
+  const { u, v, w, h } = rect;
+  // Convert pixel coordinates to UV (0..1)
+  const u1 = u / ATLAS_WIDTH;
+  const v1 = v / ATLAS_HEIGHT;
+  const u2 = (u + w) / ATLAS_WIDTH;
+  const v2 = (v + h) / ATLAS_HEIGHT;
+  return { u1, v1, u2, v2 };
 }
 
 function getBlockMaterial(blockId) {
-  if (materialCache[blockId]) return materialCache[blockId];
-  const color = getBlockColor(blockId);
-  const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(color) });
-  materialCache[blockId] = mat;
-  return mat;
+  if (materialCache.has(blockId)) return materialCache.get(blockId);
+
+  const uvRect = getUVsForBlock(blockId);
+  if (uvRect && atlasTexture) {
+    // Clone the texture to allow different UVs per material
+    const tex = atlasTexture.clone();
+    tex.needsUpdate = true;
+    const material = new THREE.MeshStandardMaterial({
+      map: tex,
+      roughness: 0.6,
+      metalness: 0.1,
+    });
+    // Store UV transform on the material userData (for demonstration)
+    material.userData = { uvRect };
+    materialCache.set(blockId, material);
+    return material;
+  } else {
+    // Fallback to solid color
+    const color = FALLBACK_COLOR;
+    const material = new THREE.MeshStandardMaterial({ color, roughness: 0.5 });
+    materialCache.set(blockId, material);
+    return material;
+  }
+}
+
+// Override UVs – because three.js BoxGeometry uses UVs 0-1 per face,
+// we need to modify the geometry's UVs to show the correct part of the atlas.
+// Simpler approach: create a custom geometry for each block type with remapped UVs.
+const baseBoxGeo = new THREE.BoxGeometry(1, 1, 1);
+function createTexturedMesh(blockId) {
+  const material = getBlockMaterial(blockId);
+  const uvRect = material.userData?.uvRect;
+  if (!uvRect || !atlasTexture) {
+    // No texture – just return a standard mesh
+    return new THREE.Mesh(baseBoxGeo, material);
+  }
+
+  // Clone geometry and remap UVs for all faces to the same atlas region
+  const geometry = baseBoxGeo.clone();
+  const uvAttribute = geometry.attributes.uv;
+  if (uvAttribute) {
+    const uvArray = uvAttribute.array;
+    // Each vertex gets a UV coordinate (0..1). We remap them all to the block's rect.
+    for (let i = 0; i < uvArray.length; i += 2) {
+      // Original UV (u in 0..1, v in 0..1) – we map the whole square to the target rect
+      const origU = uvArray[i];
+      const origV = uvArray[i+1];
+      // Map [0,1] -> [u1, u2] and [0,1] -> [v1, v2]
+      uvArray[i]   = uvRect.u1 + origU * (uvRect.u2 - uvRect.u1);
+      uvArray[i+1] = uvRect.v1 + origV * (uvRect.v2 - uvRect.v1);
+    }
+    uvAttribute.needsUpdate = true;
+  }
+  const mesh = new THREE.Mesh(geometry, material);
+  return mesh;
 }
 
 // ================================================================
-//  🗂️  LAYER DATA
+//  LAYER MANAGEMENT
 // ================================================================
-
-// Stores meshes grouped by Y layer
-// layerMeshes[y] = [ mesh, mesh, ... ]
 const layerMeshes = {};
 let currentLayer = 0;
 let totalLayers = TOTAL_LAYERS;
 
 function buildScene(data) {
   totalLayers = data.total_layers || TOTAL_LAYERS;
+  document.getElementById('step-counter').textContent = `0 / ${totalLayers}`;
 
-  // Update step counter total
-  updateCounter(0);
-
-  // Group blocks by Y layer
   const byLayer = {};
   for (const block of data.blocks) {
     const y = block.y;
@@ -368,14 +323,11 @@ function buildScene(data) {
     byLayer[y].push(block);
   }
 
-  // Create meshes for each layer
   for (const [yStr, blocks] of Object.entries(byLayer)) {
     const y = parseInt(yStr);
     layerMeshes[y] = [];
-
     for (const block of blocks) {
-      const mat = getBlockMaterial(block.id);
-      const mesh = new THREE.Mesh(blockGeo, mat);
+      const mesh = createTexturedMesh(block.id);
       mesh.position.set(block.x, block.y, block.z);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -394,77 +346,88 @@ function buildScene(data) {
   box.getCenter(center);
   controls.target.set(center.x, center.y, center.z);
   controls.update();
-
-  // Update grid position
   gridHelper.position.x = center.x;
   gridHelper.position.z = center.z;
 
   showLayer(0);
 }
 
-// ================================================================
-//  🎮  LAYER NAVIGATION
-// ================================================================
-
 function showLayer(index) {
   if (index < 0 || index >= totalLayers) return;
   currentLayer = index;
-
   for (const [yStr, meshes] of Object.entries(layerMeshes)) {
     const y = parseInt(yStr);
     const visible = LAYER_MODE === 'cumulative' ? y <= index : y === index;
-    for (const mesh of meshes) {
-      mesh.visible = visible;
-    }
+    for (const mesh of meshes) mesh.visible = visible;
   }
-
-  updateCounter(index);
+  document.getElementById('step-counter').textContent = `${index+1} / ${totalLayers}`;
   document.getElementById('btn-prev').disabled = index === 0;
   document.getElementById('btn-next').disabled = index === totalLayers - 1;
 }
 
-function updateCounter(index) {
-  document.getElementById('step-counter').textContent =
-    `${index + 1} / ${totalLayers}`;
-}
-
+// Navigation
 document.getElementById('btn-prev').addEventListener('click', () => showLayer(currentLayer - 1));
 document.getElementById('btn-next').addEventListener('click', () => showLayer(currentLayer + 1));
-
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowRight' || e.key === 'ArrowUp')   showLayer(currentLayer + 1);
+  if (e.key === 'ArrowRight' || e.key === 'ArrowUp') showLayer(currentLayer + 1);
   if (e.key === 'ArrowLeft'  || e.key === 'ArrowDown') showLayer(currentLayer - 1);
 });
 
 // ================================================================
-//  📡  LOAD DATA
+//  LOAD DATA AND TEXTURES
 // ================================================================
-
-async function loadData() {
-  const url = BASE_URL + DATA_FILE;
+async function init() {
+  const loadingDiv = document.getElementById('loading');
   const loadingBar = document.getElementById('loading-bar-inner');
+  const loadingText = document.getElementById('loading-text');
 
+  // 1. Load texture atlas
+  loadingText.textContent = 'LOADING TEXTURES';
+  loadingBar.style.width = '10%';
+  let atlasLoaded = false;
+  if (ATLAS_URL && ATLAS_URL !== 'https://your-server.com/minecraft_atlas.png') {
+    try {
+      const tex = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+          const texture = new THREE.Texture(img);
+          texture.needsUpdate = true;
+          resolve(texture);
+        };
+        img.onerror = reject;
+        img.src = ATLAS_URL;
+      });
+      atlasTexture = tex;
+      atlasLoaded = true;
+    } catch (e) {
+      console.warn('Could not load external atlas, using debug atlas', e);
+    }
+  }
+  if (!atlasLoaded) {
+    atlasTexture = generateDebugAtlas();
+  }
+  loadingBar.style.width = '50%';
+
+  // 2. Load JSON block data
+  loadingText.textContent = 'LOADING BLOCKS';
+  const dataUrl = BASE_URL + DATA_FILE;
   try {
-    loadingBar.style.width = '30%';
-    const response = await fetch(url);
+    const response = await fetch(dataUrl);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    loadingBar.style.width = '70%';
     const data = await response.json();
     loadingBar.style.width = '100%';
     setTimeout(() => {
-      document.getElementById('loading').style.display = 'none';
+      loadingDiv.style.display = 'none';
       buildScene(data);
     }, 200);
   } catch (e) {
-    document.getElementById('loading-text').textContent = 'ERROR LOADING DATA';
-    console.error('Failed to load block data:', e);
+    loadingText.textContent = 'ERROR LOADING DATA';
+    console.error(e);
   }
 }
 
-// ================================================================
-//  🔄  RENDER LOOP
-// ================================================================
-
+// Render loop
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
@@ -478,7 +441,7 @@ window.addEventListener('resize', () => {
 });
 
 animate();
-loadData();
+init();
 </script>
 </body>
 </html>
