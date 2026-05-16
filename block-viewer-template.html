@@ -67,17 +67,15 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ========== CONFIGURATION ==========
-// Your JSON data (same repo)
-const BASE_URL = './';  // or 'https://flamex7.github.io/Layer-Json-Test/'
+const BASE_URL = 'https://flamex7.github.io/Layer-Json-Test/';  
 const DATA_FILE = 'slime_rocket.json';
 const TOTAL_LAYERS = 15;
-const LAYER_MODE = 'cumulative';
+const LAYER_MODE = 'cumulative'; // 'cumulative' or 'single'
 const CAMERA_POS = { x: 8, y: 10, z: 16 };
 const CAMERA_TARGET = { x: 0, y: 3, z: 0 };
 
-// Your local atlas and mapping (same folder as this HTML)
-const ATLAS_URL = './atlas.png';
-const MAPPING_URL = './texture_map.json';
+const ATLAS_URL = 'https://flamex7.github.io/Layer-Json-Test/atlas.png';
+const MAPPING_URL = 'https://flamex7.github.io/Layer-Json-Test/texture_map.json';
 
 // ========== THREE.JS SETUP ==========
 const container = document.getElementById('container');
@@ -120,77 +118,90 @@ const layerMeshes = {};
 let currentLayer = 0;
 let totalLayers = TOTAL_LAYERS;
 
+// Shared base material configurations to prevent layout thrashing
+let sharedAtlasMaterial = null;
+
 // ========== FALLBACK PROCEDURAL TEXTURES (safe) ==========
 function createFallbackTexture(blockId) {
   const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 64;
+  canvas.width = 16; // Smaller for performance
+  canvas.height = 16;
   const ctx = canvas.getContext('2d');
   let hash = 0;
   for (let i = 0; i < blockId.length; i++) hash = ((hash << 5) - hash) + blockId.charCodeAt(i);
   const hue = Math.abs(hash % 360);
-  const color = new THREE.Color().setHSL(hue / 360, 0.7, 0.6);
+  const color = new THREE.Color().setHSL(hue / 360, 0.7, 0.5);
   ctx.fillStyle = `rgb(${color.r*255},${color.g*255},${color.b*255})`;
-  ctx.fillRect(0, 0, 64, 64);
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(2, 2, 60, 60);
-  ctx.fillStyle = '#00000080';
-  for (let i = 0; i < 50; i++) ctx.fillRect(Math.random()*64, Math.random()*64, 2, 2);
+  ctx.fillRect(0, 0, 16, 16);
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0, 0, 16, 16);
+  
   const texture = new THREE.CanvasTexture(canvas);
-  texture.needsUpdate = true;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
   return texture;
 }
 
 function getFallbackMaterial(blockId) {
   if (materialCache.has(blockId)) return materialCache.get(blockId);
   const texture = createFallbackTexture(blockId);
-  const mat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.5 });
+  const mat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6 });
   materialCache.set(blockId, mat);
   return mat;
 }
 
-// ========== ATLAS-BASED MATERIAL ==========
-function getAtlasMaterial(blockId) {
-  if (materialCache.has(blockId)) return materialCache.get(blockId);
-  const rect = textureMap[blockId];
+// ========== ATLAS-BASED MATERIAL MAPPING ==========
+function getAtlasMaterialData(blockId) {
+  let rect = textureMap[blockId];
   if (!rect) {
-    // Use first texture in atlas as fallback
     const firstKey = Object.keys(textureMap)[0];
-    const fallbackRect = textureMap[firstKey];
-    if (!fallbackRect) return getFallbackMaterial(blockId);
-    return getAtlasMaterial(firstKey);
+    rect = textureMap[firstKey];
+    if (!rect) return null;
   }
+  
   const atlasW = atlasTexture.image.width;
   const atlasH = atlasTexture.image.height;
-  const u1 = rect.u / atlasW;
-  const v1 = rect.v / atlasH;
-  const u2 = (rect.u + rect.w) / atlasW;
-  const v2 = (rect.v + rect.h) / atlasH;
   
-  const texture = atlasTexture.clone();
-  texture.needsUpdate = true;
-  const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6 });
-  material.userData = { u1, v1, u2, v2 };
-  materialCache.set(blockId, material);
-  return material;
+  // Calculate UV window coordinates
+  return {
+    u1: rect.u / atlasW,
+    v1: 1.0 - ((rect.v + rect.h) / atlasH), // Flip V coordinate for Three.js space
+    u2: (rect.u + rect.w) / atlasW,
+    v2: 1.0 - (rect.v / atlasH)
+  };
 }
 
 function createMesh(blockId) {
-  const material = (useFallback || !atlasTexture) ? getFallbackMaterial(blockId) : getAtlasMaterial(blockId);
-  const geometry = new THREE.BoxGeometry(1, 1, 1);
-  if (!useFallback && atlasTexture && material.userData) {
-    const uvAttr = geometry.attributes.uv;
-    const uvArray = uvAttr.array;
-    const { u1, v1, u2, v2 } = material.userData;
-    for (let i = 0; i < uvArray.length; i += 2) {
-      const origU = uvArray[i];
-      const origV = uvArray[i+1];
-      uvArray[i]   = u1 + origU * (u2 - u1);
-      uvArray[i+1] = v1 + origV * (v2 - v1);
+  let geometry = new THREE.BoxGeometry(1, 1, 1);
+  let material;
+
+  if (useFallback || !atlasTexture) {
+    material = getFallbackMaterial(blockId);
+  } else {
+    material = sharedAtlasMaterial;
+    const uvData = getAtlasMaterialData(blockId);
+    
+    if (uvData) {
+      // Unshare/clone geometry for each unique block type to apply custom UV data
+      geometry = geometry.clone(); 
+      const uvAttr = geometry.attributes.uv;
+      const uvArray = uvAttr.array;
+      const { u1, v1, u2, v2 } = uvData;
+      
+      // Update custom geometry UV boundaries based on box faces maps
+      for (let i = 0; i < uvArray.length; i += 2) {
+        const origU = uvArray[i];
+        const origV = uvArray[i+1];
+        uvArray[i]   = u1 + origU * (u2 - u1);
+        uvArray[i+1] = v1 + origV * (v2 - v1);
+      }
+      uvAttr.needsUpdate = true;
+    } else {
+      material = getFallbackMaterial(blockId);
     }
-    uvAttr.needsUpdate = true;
   }
+
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -225,7 +236,7 @@ async function buildScene(data) {
     }
   }
   
-  // Center camera
+  // Center camera setup
   const box = new THREE.Box3();
   for (const block of data.blocks) box.expandByPoint(new THREE.Vector3(block.x, block.y, block.z));
   const center = new THREE.Vector3();
@@ -271,13 +282,20 @@ async function init() {
     loadingBar.style.width = '10%';
     const img = await new Promise((resolve, reject) => {
       const image = new Image();
-      image.crossOrigin = 'Anonymous';  // still safe for same-origin
+      image.crossOrigin = 'Anonymous';  
       image.onload = () => resolve(image);
       image.onerror = () => reject(new Error(`Failed to load ${ATLAS_URL}`));
       image.src = ATLAS_URL;
     });
+    
     atlasTexture = new THREE.Texture(img);
+    // Minecraft pixelation configuration: 
+    atlasTexture.magFilter = THREE.NearestFilter;
+    atlasTexture.minFilter = THREE.NearestFilter;
     atlasTexture.needsUpdate = true;
+    
+    // Create single instance material instance referenced universally
+    sharedAtlasMaterial = new THREE.MeshStandardMaterial({ map: atlasTexture, roughness: 0.6 });
     loadingBar.style.width = '40%';
     
     // Load mapping JSON
