@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Minecraft Viewer – Real Textures (with fallback)</title>
+<title>Minecraft Viewer – Your Own Atlas</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { background: transparent; overflow: hidden; width: 100%; height: 100%; }
@@ -67,112 +67,19 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ========== CONFIGURATION ==========
-const BASE_URL = 'https://flamex7.github.io/Layer-Json-Test/';
+// Your JSON data (same repo)
+const BASE_URL = './';  // or 'https://flamex7.github.io/Layer-Json-Test/'
 const DATA_FILE = 'slime_rocket.json';
 const TOTAL_LAYERS = 15;
 const LAYER_MODE = 'cumulative';
 const CAMERA_POS = { x: 8, y: 10, z: 16 };
 const CAMERA_TARGET = { x: 0, y: 3, z: 0 };
 
-// ========== PUBLIC ATLAS (working example) ==========
-const ATLAS_URL = 'https://raw.githubusercontent.com/InventivetalentDev/minecraft-atlas/master/atlas.png';
-// This atlas is 256x256, each block 16x16. We'll define a large mapping for blocks you use.
+// Your local atlas and mapping (same folder as this HTML)
+const ATLAS_URL = './atlas.png';
+const MAPPING_URL = './texture_map.json';
 
-// ========== UV MAPPING FOR YOUR BLOCKS (based on known positions in that atlas) ==========
-// These coordinates are approximate but will give correct textures for most vanilla blocks.
-// If a block is missing, we fallback to a default stone texture.
-const TEXTURE_MAP = {
-  'grass_block':      { u: 0,   v: 0 },   // top-left
-  'dirt':             { u: 16,  v: 0 },
-  'cobblestone':      { u: 32,  v: 0 },
-  'stone':            { u: 48,  v: 0 },
-  'andesite':         { u: 64,  v: 0 },
-  'oak_planks':       { u: 80,  v: 0 },
-  'spruce_planks':    { u: 96,  v: 0 },
-  'iron_block':       { u: 128, v: 0 },
-  'gold_block':       { u: 144, v: 0 },
-  'diamond_block':    { u: 160, v: 0 },
-  'sand':             { u: 192, v: 0 },
-  'glass':            { u: 224, v: 0 },
-  'stone_bricks':     { u: 0,   v: 16 },
-  'packed_mud':       { u: 80,  v: 16 },
-  'mud_bricks':       { u: 96,  v: 16 },
-  'spruce_trapdoor':  { u: 160, v: 16 },
-  'lantern':          { u: 176, v: 16 },
-  'barrel':           { u: 192, v: 16 },
-  'campfire':         { u: 208, v: 16 },
-  'chest':            { u: 224, v: 16 },
-  'dark_oak_stairs':  { u: 0,   v: 32 },
-  'spruce_stairs':    { u: 16,  v: 32 },
-  'mud_brick_stairs': { u: 32,  v: 32 },
-  'spruce_slab':      { u: 48,  v: 32 },
-  'dark_oak_slab':    { u: 64,  v: 32 },
-  'andesite_stairs':  { u: 80,  v: 32 },
-  'stone_stairs':     { u: 96,  v: 32 },
-  'cobblestone_stairs': { u:112, v: 32 },
-  'andesite_slab':    { u: 128, v: 32 },
-  'stone_slab':       { u: 144, v: 32 },
-  'andesite_wall':    { u: 160, v: 32 },
-  'dark_oak_fence':   { u: 176, v: 32 },
-  'spruce_fence':     { u: 192, v: 32 },
-  'dark_oak_button':  { u: 208, v: 32 },
-  'spruce_button':    { u: 224, v: 32 },
-  'brown_mushroom_block': { u: 0, v: 48 },
-  'azalea_leaves':    { u: 32,  v: 48 },
-  'flowering_azalea_leaves': { u: 48, v: 48 },
-  'moss_carpet':      { u: 64,  v: 48 },
-  'scaffolding':      { u: 80,  v: 48 },
-  'cobweb':           { u: 96,  v: 48 },
-  'decorated_pot':    { u: 112, v: 48 },
-  'flower_pot':       { u: 128, v: 48 },
-  'soul_lantern':     { u: 160, v: 48 },
-  'water_cauldron':   { u: 176, v: 48 },
-  'ladder':           { u: 208, v: 48 },
-  'iron_bars':        { u: 224, v: 48 },
-  'glass_pane':       { u: 240, v: 48 },
-  'dandelion':        { u: 0,   v: 64 },
-  'poppy':            { u: 16,  v: 64 },
-  'blue_orchid':      { u: 32,  v: 64 },
-  'allium':           { u: 48,  v: 64 },
-  'azure_bluet':      { u: 64,  v: 64 },
-  'lily_of_the_valley': { u: 80, v: 64 },
-  'white_tulip':      { u: 96,  v: 64 },
-  'spruce_door':      { u: 112, v: 64 },
-  'dark_oak_door':    { u: 128, v: 64 },
-  'white_bed':        { u: 144, v: 64 },
-  'crafting_table':   { u: 160, v: 64 },
-  'furnace':          { u: 176, v: 64 },
-  'blast_furnace':    { u: 192, v: 64 },
-  'smoker':           { u: 208, v: 64 },
-  'cartography_table':{ u: 224, v: 64 },
-  'loom':             { u: 240, v: 64 },
-  'grindstone':       { u: 0,   v: 80 },
-  'stonecutter':      { u: 16,  v: 80 },
-  'smithing_table':   { u: 32,  v: 80 },
-  'jukebox':          { u: 48,  v: 80 },
-  'note_block':       { u: 64,  v: 80 },
-  'tripwire_hook':    { u: 80,  v: 80 },
-  'redstone_wire':    { u: 96,  v: 80 },
-  'heavy_weighted_pressure_plate': { u: 112, v: 80 },
-  'light_weighted_pressure_plate': { u: 128, v: 80 },
-  'dark_oak_pressure_plate': { u: 144, v: 80 },
-  'spruce_pressure_plate': { u: 160, v: 80 },
-  'anvil':            { u: 176, v: 80 },
-  'chiseled_bookshelf': { u: 192, v: 80 },
-  'brown_carpet':     { u: 224, v: 80 },
-  'oak_leaves':       { u: 0,   v: 96 },
-  'spruce_leaves':    { u: 16,  v: 96 },
-  'dark_oak_leaves':  { u: 32,  v: 96 },
-  'stripped_spruce_log': { u: 48, v: 96 },
-  'stripped_oak_log': { u: 64,  v: 96 },
-  'spruce_wood':      { u: 80,  v: 96 },
-  'dark_oak_wood':    { u: 96,  v: 96 },
-};
-
-// Default stone texture position (first texture in atlas)
-const DEFAULT_UV = { u: 0, v: 0 };
-
-// ========== SETUP THREE.JS ==========
+// ========== THREE.JS SETUP ==========
 const container = document.getElementById('container');
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setClearColor(0x000000, 0);
@@ -206,20 +113,19 @@ scene.add(gridHelper);
 
 // ========== GLOBALS ==========
 let atlasTexture = null;
-let useFallback = false;   // if atlas fails, switch to procedural textures
+let textureMap = null;
+let useFallback = false;
 const materialCache = new Map();
 const layerMeshes = {};
 let currentLayer = 0;
 let totalLayers = TOTAL_LAYERS;
 
-// ========== FALLBACK: PROCEDURAL TEXTURES (works 100%) ==========
+// ========== FALLBACK PROCEDURAL TEXTURES (safe) ==========
 function createFallbackTexture(blockId) {
   const canvas = document.createElement('canvas');
   canvas.width = 64;
   canvas.height = 64;
   const ctx = canvas.getContext('2d');
-  
-  // Deterministic color from blockId
   let hash = 0;
   for (let i = 0; i < blockId.length; i++) hash = ((hash << 5) - hash) + blockId.charCodeAt(i);
   const hue = Math.abs(hash % 360);
@@ -229,10 +135,8 @@ function createFallbackTexture(blockId) {
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 2;
   ctx.strokeRect(2, 2, 60, 60);
-  // simple pattern
   ctx.fillStyle = '#00000080';
   for (let i = 0; i < 50; i++) ctx.fillRect(Math.random()*64, Math.random()*64, 2, 2);
-  
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   return texture;
@@ -249,13 +153,20 @@ function getFallbackMaterial(blockId) {
 // ========== ATLAS-BASED MATERIAL ==========
 function getAtlasMaterial(blockId) {
   if (materialCache.has(blockId)) return materialCache.get(blockId);
-  const rect = TEXTURE_MAP[blockId] || DEFAULT_UV;
+  const rect = textureMap[blockId];
+  if (!rect) {
+    // Use first texture in atlas as fallback
+    const firstKey = Object.keys(textureMap)[0];
+    const fallbackRect = textureMap[firstKey];
+    if (!fallbackRect) return getFallbackMaterial(blockId);
+    return getAtlasMaterial(firstKey);
+  }
   const atlasW = atlasTexture.image.width;
   const atlasH = atlasTexture.image.height;
   const u1 = rect.u / atlasW;
   const v1 = rect.v / atlasH;
-  const u2 = (rect.u + 16) / atlasW;
-  const v2 = (rect.v + 16) / atlasH;
+  const u2 = (rect.u + rect.w) / atlasW;
+  const v2 = (rect.v + rect.h) / atlasH;
   
   const texture = atlasTexture.clone();
   texture.needsUpdate = true;
@@ -266,10 +177,9 @@ function getAtlasMaterial(blockId) {
 }
 
 function createMesh(blockId) {
-  const material = useFallback ? getFallbackMaterial(blockId) : getAtlasMaterial(blockId);
+  const material = (useFallback || !atlasTexture) ? getFallbackMaterial(blockId) : getAtlasMaterial(blockId);
   const geometry = new THREE.BoxGeometry(1, 1, 1);
-  if (!useFallback && material.userData) {
-    // remap UVs for atlas
+  if (!useFallback && atlasTexture && material.userData) {
     const uvAttr = geometry.attributes.uv;
     const uvArray = uvAttr.array;
     const { u1, v1, u2, v2 } = material.userData;
@@ -311,11 +221,11 @@ async function buildScene(data) {
       scene.add(mesh);
       layerMeshes[y].push(mesh);
       processed++;
-      loadingBar.style.width = `${80 + (processed / totalBlocks) * 20}%`;
+      loadingBar.style.width = `${70 + (processed / totalBlocks) * 30}%`;
     }
   }
   
-  // Center view
+  // Center camera
   const box = new THREE.Box3();
   for (const block of data.blocks) box.expandByPoint(new THREE.Vector3(block.x, block.y, block.z));
   const center = new THREE.Vector3();
@@ -349,45 +259,52 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft'  || e.key === 'ArrowDown') showLayer(currentLayer - 1);
 });
 
-// ========== INIT ==========
+// ========== LOAD ATLAS AND MAPPING ==========
 async function init() {
   const errorDiv = document.getElementById('error-log');
   const loadingText = document.getElementById('loading-text');
   const loadingBar = document.getElementById('loading-bar-inner');
   
-  // Try to load real atlas
   try {
-    loadingText.textContent = 'LOADING REAL TEXTURES';
+    // Load atlas image
+    loadingText.textContent = 'LOADING ATLAS';
     loadingBar.style.width = '10%';
     const img = await new Promise((resolve, reject) => {
       const image = new Image();
-      image.crossOrigin = 'Anonymous';
+      image.crossOrigin = 'Anonymous';  // still safe for same-origin
       image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error('Atlas failed to load'));
+      image.onerror = () => reject(new Error(`Failed to load ${ATLAS_URL}`));
       image.src = ATLAS_URL;
     });
     atlasTexture = new THREE.Texture(img);
     atlasTexture.needsUpdate = true;
     loadingBar.style.width = '40%';
+    
+    // Load mapping JSON
+    loadingText.textContent = 'LOADING MAPPING';
+    const res = await fetch(MAPPING_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${MAPPING_URL}`);
+    textureMap = await res.json();
+    loadingBar.style.width = '60%';
     useFallback = false;
     errorDiv.textContent = '✓ Real textures loaded successfully!';
     errorDiv.style.color = '#aaffaa';
   } catch (err) {
     console.warn(err);
-    errorDiv.textContent = '⚠️ Could not load real textures. Using colorful fallback. (Atlas failed)';
+    errorDiv.textContent = `⚠️ Could not load real textures: ${err.message}. Using colorful fallback.`;
     errorDiv.style.color = '#ffaa88';
     useFallback = true;
-    loadingBar.style.width = '40%';
+    loadingBar.style.width = '60%';
   }
   
-  // Load JSON data
+  // Load JSON block data
   loadingText.textContent = 'LOADING BLOCKS';
   const dataUrl = BASE_URL + DATA_FILE;
   try {
     const response = await fetch(dataUrl);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    loadingBar.style.width = '70%';
+    loadingBar.style.width = '80%';
     await buildScene(data);
   } catch (err) {
     errorDiv.textContent = `ERROR: ${err.message}`;
