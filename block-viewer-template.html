@@ -321,13 +321,10 @@ gridHelper.position.y = -0.01;
 scene.add(gridHelper);
 
 // ================================================================
-//  📦  BLOCK RENDERING
+//  📦 BLOCK RENDERING
 // ================================================================
 
-// Geometry shared across all blocks — one cube
 const blockGeo = new THREE.BoxGeometry(1, 1, 1);
-
-// Material cache — reuse materials for same block type
 const materialCache = {};
 
 function getBlockColor(blockId) {
@@ -345,8 +342,92 @@ function getBlockMaterial(blockId) {
 }
 
 // ================================================================
-//  🗂️  LAYER DATA
+//  🗂️ LAYER DATA
 // ================================================================
+
+const layerMeshes = {};
+let currentLayer = 0;
+let totalLayers = TOTAL_LAYERS;
+
+function buildScene(data) {
+  if (!data.blocks || data.blocks.length === 0) {
+    console.error("No blocks found in JSON data!");
+    document.getElementById('loading-text').textContent = 'NO BLOCKS FOUND';
+    return;
+  }
+
+  // 1. Find the boundaries of the schematic to normalize coordinates
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+  for (const block of data.blocks) {
+    if (block.x < minX) minX = block.x;
+    if (block.y < minY) minY = block.y;
+    if (block.z < minZ) minZ = block.z;
+    if (block.x > maxX) maxX = block.x;
+    if (block.y > maxY) maxY = block.y;
+    if (block.z > maxZ) maxZ = block.z;
+  }
+
+  // Calculate sizes
+  const width = (maxX - minX) + 1;
+  const height = (maxY - minY) + 1;
+  const length = (maxZ - minZ) + 1;
+
+  // Overwrite layers based on actual data
+  totalLayers = data.total_layers || height;
+  updateCounter(0);
+
+  // 2. Group blocks relative to 0,0,0
+  const byLayer = {};
+  
+  for (const block of data.blocks) {
+    // Normalize coordinates so the build sits flat on the grid floor
+    const relX = block.x - minX - (width / 2);
+    const relY = block.y - minY; // Starts on the floor at y=0
+    const relZ = block.z - minZ - (length / 2);
+
+    // Group by normalized Y layer index
+    if (!byLayer[relY]) byLayer[relY] = [];
+    
+    byLayer[relY].push({
+      id: block.id,
+      x: relX,
+      y: relY,
+      z: relZ
+    });
+  }
+
+  // 3. Create and add meshes to the scene
+  for (const [yStr, blocks] of Object.entries(byLayer)) {
+    const y = parseInt(yStr);
+    layerMeshes[y] = [];
+
+    for (const block of blocks) {
+      const mat = getBlockMaterial(block.id);
+      const mesh = new THREE.Mesh(blockGeo, mat);
+      
+      mesh.position.set(block.x, block.y + 0.5, block.z); // Adjust offset for box geometry centers
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.visible = false;
+      
+      scene.add(mesh);
+      layerMeshes[y].push(mesh);
+    }
+  }
+
+  // 4. Center camera target right onto the heart of the structure
+  controls.target.set(0, height / 2, 0);
+  camera.position.set(width, height + 5, length * 1.5); // Dynamically scale zoom based on size
+  controls.update();
+
+  // Keep grid grounded under the object
+  gridHelper.position.set(0, 0, 0);
+
+  // Initialize view
+  showLayer(0);
+}
 
 // Stores meshes grouped by Y layer
 // layerMeshes[y] = [ mesh, mesh, ... ]
