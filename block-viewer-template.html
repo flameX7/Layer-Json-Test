@@ -3,96 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Minecraft Block Viewer – Instant Textures</title>
+<title>Minecraft Viewer – Real Vanilla Textures</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body {
-    background: transparent;
-    overflow: hidden;
-    width: 100%;
-    height: 100%;
-  }
-  #container {
-    width: 100vw;
-    height: 100vh;
-    position: relative;
-  }
+  html, body { background: transparent; overflow: hidden; width: 100%; height: 100%; }
+  #container { width: 100vw; height: 100vh; position: relative; }
   .arrow-btn {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 16px;
-    z-index: 10;
-    transition: opacity 0.2s;
+    position: absolute; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; padding: 16px; z-index: 10;
   }
-  .arrow-btn:disabled { cursor: not-allowed; opacity: 0.3; }
+  .arrow-btn:disabled { opacity: 0.3; cursor: not-allowed; }
   .arrow-btn svg { width: 32px; height: 32px; stroke: white; stroke-width: 1.5; }
   #btn-prev { left: 16px; }
   #btn-next { right: 16px; }
   #step-counter {
-    position: absolute;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-family: sans-serif;
-    font-size: 13px;
-    letter-spacing: 0.1em;
-    pointer-events: none;
-    z-index: 10;
-    color: white;
-    text-shadow: 0 0 4px black;
-    background: rgba(0,0,0,0.5);
-    padding: 4px 12px;
-    border-radius: 20px;
+    position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+    font-family: sans-serif; font-size: 13px; letter-spacing: 0.1em;
+    pointer-events: none; z-index: 10; color: white;
+    background: rgba(0,0,0,0.5); padding: 4px 12px; border-radius: 20px;
   }
   #loading {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    z-index: 100;
-    backdrop-filter: blur(4px);
+    position: absolute; inset: 0; background: rgba(0,0,0,0.7);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; backdrop-filter: blur(4px);
   }
-  #loading-text {
-    font-family: sans-serif;
-    font-size: 14px;
-    letter-spacing: 0.15em;
-    color: white;
-  }
-  #loading-bar-outer {
-    width: 200px;
-    height: 3px;
-    background: rgba(255,255,255,0.3);
-    border-radius: 3px;
-    overflow: hidden;
-  }
-  #loading-bar-inner {
-    height: 100%;
-    width: 0%;
-    background: #7cc25a;
-    transition: width 0.2s;
-  }
+  #loading-text { font-family: sans-serif; font-size: 14px; color: white; margin-bottom: 12px; }
+  #loading-bar-outer { width: 200px; height: 3px; background: rgba(255,255,255,0.3); border-radius: 3px; }
+  #loading-bar-inner { height: 100%; width: 0%; background: #7cc25a; transition: width 0.2s; }
 </style>
 </head>
 <body>
 <div id="container">
   <div id="loading">
-    <div id="loading-text">GENERATING TEXTURES</div>
+    <div id="loading-text">LOADING TEXTURES</div>
     <div id="loading-bar-outer"><div id="loading-bar-inner"></div></div>
   </div>
-  <button class="arrow-btn" id="btn-prev" disabled>
-    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-  </button>
-  <button class="arrow-btn" id="btn-next">
-    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-  </button>
+  <button class="arrow-btn" id="btn-prev" disabled><svg viewBox="0 0 24 24" fill="none"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+  <button class="arrow-btn" id="btn-next"><svg viewBox="0 0 24 24" fill="none"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
   <div id="step-counter">1 / 1</div>
 </div>
 
@@ -109,158 +56,17 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// ================================================================
-//  CONFIGURATION
-// ================================================================
+// ========== CONFIGURATION – EDIT THESE THREE LINES ==========
 const BASE_URL = 'https://flamex7.github.io/Layer-Json-Test/';
 const DATA_FILE = 'slime_rocket.json';
 const TOTAL_LAYERS = 15;
-const LAYER_MODE = 'cumulative';
-const CAMERA_POSITION = { x: 8, y: 10, z: 16 };
-const CAMERA_TARGET = { x: 0, y: 3, z: 0 };
+// ============================================================
 
-// ================================================================
-//  GENERATE TEXTURES ON THE FLY (NO EXTERNAL FILES)
-//  Each block gets a unique color + a simple pattern
-// ================================================================
-const textureCache = new Map();
+// Your hosted atlas and mapping (replace with your raw GitHub URLs)
+const ATLAS_URL = 'https://raw.githubusercontent.com/flameX7/minecraft-textures/main/atlas.png';
+const MAPPING_URL = 'https://raw.githubusercontent.com/flameX7/minecraft-textures/main/texture_map.json';
 
-// Deterministic color from block ID (so same block always same color)
-function getBlockColor(blockId) {
-  let hash = 0;
-  for (let i = 0; i < blockId.length; i++) {
-    hash = ((hash << 5) - hash) + blockId.charCodeAt(i);
-    hash |= 0;
-  }
-  // Generate a pleasant, Minecraft‑like hue (avoid too dark)
-  const hue = Math.abs(hash % 360);
-  const sat = 0.6 + (Math.abs(hash >> 8) % 30) / 100;
-  const lit = 0.5 + (Math.abs(hash >> 16) % 30) / 100;
-  return new THREE.Color().setHSL(hue / 360, sat, lit);
-}
-
-function createBlockTexture(blockId) {
-  if (textureCache.has(blockId)) return textureCache.get(blockId);
-  
-  const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d');
-  
-  // Base color
-  const color = getBlockColor(blockId);
-  ctx.fillStyle = `rgb(${color.r * 255}, ${color.g * 255}, ${color.b * 255})`;
-  ctx.fillRect(0, 0, 64, 64);
-  
-  // Add a dark border (simulate block edges)
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(2, 2, 60, 60);
-  
-  // Add a simple pattern based on block type (so they look distinct)
-  if (blockId.includes('planks') || blockId.includes('log')) {
-    // Wood grain lines
-    ctx.beginPath();
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 5; i++) {
-      const x = 10 + i * 12;
-      ctx.beginPath();
-      ctx.moveTo(x, 10);
-      ctx.lineTo(x + 8, 54);
-      ctx.stroke();
-    }
-  } else if (blockId.includes('stone') || blockId.includes('cobble') || blockId.includes('brick')) {
-    // Random dots (pebbles)
-    ctx.fillStyle = '#000000';
-    for (let i = 0; i < 80; i++) {
-      ctx.fillRect(4 + Math.random() * 56, 4 + Math.random() * 56, 2, 2);
-    }
-  } else if (blockId.includes('grass')) {
-    // Green top with brown bottom (simulate grass block)
-    ctx.fillStyle = '#5a8a3c';
-    ctx.fillRect(0, 0, 64, 32);
-    ctx.fillStyle = '#8b5e3c';
-    ctx.fillRect(0, 32, 64, 32);
-    // Little grass blades
-    ctx.fillStyle = '#3c6a1c';
-    for (let i = 0; i < 30; i++) {
-      ctx.fillRect(8 + Math.random() * 48, 8 + Math.random() * 20, 2, 4);
-    }
-  } else if (blockId.includes('dirt')) {
-    // Dirt texture: dark brown with speckles
-    ctx.fillStyle = '#6b4423';
-    ctx.fillRect(0, 0, 64, 64);
-    ctx.fillStyle = '#4a2a0a';
-    for (let i = 0; i < 150; i++) {
-      ctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 2);
-    }
-  } else if (blockId.includes('leaves')) {
-    // Leaf pattern
-    ctx.fillStyle = '#2a5a2a';
-    ctx.fillRect(0, 0, 64, 64);
-    ctx.fillStyle = '#1a3a1a';
-    for (let i = 0; i < 60; i++) {
-      ctx.beginPath();
-      ctx.arc(8 + Math.random() * 48, 8 + Math.random() * 48, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else if (blockId.includes('mushroom')) {
-    // Mushroom spots
-    ctx.fillStyle = '#aa8866';
-    ctx.fillRect(0, 0, 64, 64);
-    ctx.fillStyle = '#664422';
-    for (let i = 0; i < 40; i++) {
-      ctx.beginPath();
-      ctx.arc(8 + Math.random() * 48, 8 + Math.random() * 48, 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else if (blockId.includes('sand')) {
-    // Sandy dots
-    ctx.fillStyle = '#e2c97e';
-    ctx.fillRect(0, 0, 64, 64);
-    ctx.fillStyle = '#c4a050';
-    for (let i = 0; i < 100; i++) {
-      ctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 2);
-    }
-  } else {
-    // Default: add a simple crosshatch
-    ctx.beginPath();
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1.5;
-    for (let i = 0; i <= 64; i += 16) {
-      ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, 64);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, i);
-      ctx.lineTo(64, i);
-      ctx.stroke();
-    }
-  }
-  
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.needsUpdate = true;
-  textureCache.set(blockId, texture);
-  return texture;
-}
-
-function getBlockMaterial(blockId) {
-  const texture = createBlockTexture(blockId);
-  const material = new THREE.MeshStandardMaterial({
-    map: texture,
-    roughness: 0.5,
-    metalness: 0.05,
-  });
-  return material;
-}
-
-// ================================================================
-//  SCENE SETUP
-// ================================================================
+// ========== THREE.JS SETUP ==========
 const container = document.getElementById('container');
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setClearColor(0x000000, 0);
@@ -271,14 +77,10 @@ container.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-camera.position.set(CAMERA_POSITION.x, CAMERA_POSITION.y, CAMERA_POSITION.z);
-
+camera.position.set(8, 10, 16);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.dampingFactor = 0.08;
-controls.minDistance = 2;
-controls.maxDistance = 80;
-controls.target.set(CAMERA_TARGET.x, CAMERA_TARGET.y, CAMERA_TARGET.z);
+controls.target.set(0, 3, 0);
 controls.update();
 
 // Lighting
@@ -292,33 +94,111 @@ const fillLight = new THREE.DirectionalLight(0xaabbff, 0.2);
 fillLight.position.set(-10, 5, -10);
 scene.add(fillLight);
 
-// Floor grid
+// Grid
 const gridHelper = new THREE.GridHelper(32, 32, 0xffffff, 0xffffff);
 gridHelper.material.transparent = true;
 gridHelper.material.opacity = 0.12;
 gridHelper.position.y = -0.01;
 scene.add(gridHelper);
 
-// ================================================================
-//  BLOCK MESH CREATION
-// ================================================================
-const blockGeo = new THREE.BoxGeometry(1, 1, 1);
-function createMesh(blockId) {
+// ========== ATLAS RENDERING ==========
+let atlasTexture = null;
+let textureMap = null;
+const materialCache = new Map();
+
+async function loadAtlasAndMapping() {
+  const loadingBar = document.getElementById('loading-bar-inner');
+  const loadingText = document.getElementById('loading-text');
+  
+  loadingText.textContent = 'LOADING ATLAS';
+  loadingBar.style.width = '20%';
+  
+  // Load atlas image
+  const img = await new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'Anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = ATLAS_URL;
+  });
+  atlasTexture = new THREE.Texture(img);
+  atlasTexture.needsUpdate = true;
+  
+  loadingBar.style.width = '50%';
+  loadingText.textContent = 'LOADING MAPPING';
+  
+  // Load mapping JSON
+  const res = await fetch(MAPPING_URL);
+  if (!res.ok) throw new Error(`Mapping HTTP ${res.status}`);
+  textureMap = await res.json();
+  
+  loadingBar.style.width = '70%';
+  return true;
+}
+
+function getUVs(blockId) {
+  const rect = textureMap[blockId];
+  if (!rect) {
+    // Fallback to a default area (first texture)
+    return { u1: 0, v1: 0, u2: 16/256, v2: 16/256 };
+  }
+  const { u, v, w, h } = rect;
+  const atlasSize = 256; // adjust if your atlas is different size! You can read from image.
+  // We'll dynamically get atlas size
+  const width = atlasTexture.image.width;
+  const height = atlasTexture.image.height;
+  return {
+    u1: u / width,
+    v1: v / height,
+    u2: (u + w) / width,
+    v2: (v + h) / height
+  };
+}
+
+function getBlockMaterial(blockId) {
+  if (materialCache.has(blockId)) return materialCache.get(blockId);
+  
+  const uvRect = getUVs(blockId);
+  const texture = atlasTexture.clone();
+  texture.needsUpdate = true;
+  const material = new THREE.MeshStandardMaterial({
+    map: texture,
+    roughness: 0.6,
+    metalness: 0.05,
+  });
+  material.userData = { uvRect };
+  materialCache.set(blockId, material);
+  return material;
+}
+
+const baseGeo = new THREE.BoxGeometry(1, 1, 1);
+function createTexturedMesh(blockId) {
   const material = getBlockMaterial(blockId);
-  const mesh = new THREE.Mesh(blockGeo, material);
+  const uvRect = material.userData.uvRect;
+  const geometry = baseGeo.clone();
+  const uvAttr = geometry.attributes.uv;
+  if (uvAttr && uvRect) {
+    const uvArray = uvAttr.array;
+    for (let i = 0; i < uvArray.length; i += 2) {
+      const origU = uvArray[i];
+      const origV = uvArray[i+1];
+      uvArray[i]   = uvRect.u1 + origU * (uvRect.u2 - uvRect.u1);
+      uvArray[i+1] = uvRect.v1 + origV * (uvRect.v2 - uvRect.v1);
+    }
+    uvAttr.needsUpdate = true;
+  }
+  const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
 }
 
-// ================================================================
-//  LAYER MANAGEMENT
-// ================================================================
+// ========== LAYER MANAGEMENT ==========
 const layerMeshes = {};
 let currentLayer = 0;
 let totalLayers = TOTAL_LAYERS;
 
-function buildScene(data) {
+async function buildScene(data) {
   totalLayers = data.total_layers || TOTAL_LAYERS;
   document.getElementById('step-counter').textContent = `0 / ${totalLayers}`;
   
@@ -329,15 +209,21 @@ function buildScene(data) {
     byLayer[y].push(block);
   }
   
+  const loadingBar = document.getElementById('loading-bar-inner');
+  const totalBlocks = data.blocks.length;
+  let processed = 0;
+  
   for (const [yStr, blocks] of Object.entries(byLayer)) {
     const y = parseInt(yStr);
     layerMeshes[y] = [];
     for (const block of blocks) {
-      const mesh = createMesh(block.id);
+      const mesh = createTexturedMesh(block.id);
       mesh.position.set(block.x, block.y, block.z);
       mesh.visible = false;
       scene.add(mesh);
       layerMeshes[y].push(mesh);
+      processed++;
+      loadingBar.style.width = `${70 + (processed / totalBlocks) * 30}%`;
     }
   }
   
@@ -353,6 +239,7 @@ function buildScene(data) {
   gridHelper.position.x = center.x;
   gridHelper.position.z = center.z;
   
+  document.getElementById('loading').style.display = 'none';
   showLayer(0);
 }
 
@@ -361,7 +248,7 @@ function showLayer(index) {
   currentLayer = index;
   for (const [yStr, meshes] of Object.entries(layerMeshes)) {
     const y = parseInt(yStr);
-    const visible = LAYER_MODE === 'cumulative' ? y <= index : y === index;
+    const visible = (LAYER_MODE === 'cumulative' ? y <= index : y === index);
     for (const mesh of meshes) mesh.visible = visible;
   }
   document.getElementById('step-counter').textContent = `${index+1} / ${totalLayers}`;
@@ -369,7 +256,6 @@ function showLayer(index) {
   document.getElementById('btn-next').disabled = index === totalLayers - 1;
 }
 
-// Navigation
 document.getElementById('btn-prev').addEventListener('click', () => showLayer(currentLayer - 1));
 document.getElementById('btn-next').addEventListener('click', () => showLayer(currentLayer + 1));
 document.addEventListener('keydown', (e) => {
@@ -377,32 +263,18 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft'  || e.key === 'ArrowDown') showLayer(currentLayer - 1);
 });
 
-// ================================================================
-//  LOAD DATA AND GENERATE TEXTURES
-// ================================================================
+// ========== INIT ==========
 async function init() {
-  const loadingDiv = document.getElementById('loading');
-  const loadingBar = document.getElementById('loading-bar-inner');
-  const loadingText = document.getElementById('loading-text');
-  
-  loadingText.textContent = 'LOADING BLOCKS';
-  loadingBar.style.width = '30%';
-  const dataUrl = BASE_URL + DATA_FILE;
   try {
+    await loadAtlasAndMapping();
+    const dataUrl = BASE_URL + DATA_FILE;
     const response = await fetch(dataUrl);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    loadingBar.style.width = '70%';
-    loadingText.textContent = 'GENERATING TEXTURES';
-    // Small delay to allow UI update
-    setTimeout(() => {
-      loadingBar.style.width = '100%';
-      loadingDiv.style.display = 'none';
-      buildScene(data);
-    }, 50);
-  } catch (e) {
-    loadingText.textContent = 'ERROR LOADING DATA';
-    console.error(e);
+    await buildScene(data);
+  } catch (err) {
+    document.getElementById('loading-text').textContent = 'ERROR: ' + err.message;
+    console.error(err);
   }
 }
 
