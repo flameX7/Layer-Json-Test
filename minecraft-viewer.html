@@ -482,12 +482,12 @@ document.addEventListener('keydown', e => {
 
 // ── Load Everything ──────────────────────────────────────────────
 async function init() {
-  // Dynamic load requirement injection for BufferGeometryUtils logic
+  // Explicitly inject BufferGeometryUtils globally just in case the addon import missed it
   try {
     const { BufferGeometryUtils } = await import('three/addons/utils/BufferGeometryUtils.js');
     THREE.BufferGeometryUtils = BufferGeometryUtils;
   } catch(e) {
-    console.warn("BufferGeometryUtils could not look up dependencies automatically.");
+    console.warn("BufferGeometryUtils could not be initialized:", e.message);
   }
 
   loadingText.textContent = 'LOADING ATLAS';
@@ -495,11 +495,17 @@ async function init() {
   try {
     const img = await new Promise((resolve, reject) => {
       const i       = new Image();
-      i.crossOrigin = 'Anonymous';
+      // Only apply anonymous CORS rules if loading from a remote URL (like GitHub Pages)
+      if (BASE_URL.startsWith('http')) {
+        i.crossOrigin = 'Anonymous';
+      }
       i.onload      = () => resolve(i);
-      i.onerror     = () => reject(new Error('Atlas failed to load'));
-      i.src         = BASE_URL + ATLAS_FILE;
+      i.onerror     = (err) => reject(new Error('Atlas image file could not be read. Check file path or local server.'));
+      
+      // If previewing locally on your computer, use a relative path instead of BASE_URL
+      i.src         = BASE_URL.startsWith('http') ? BASE_URL + ATLAS_FILE : ATLAS_FILE;
     });
+    
     atlasTexture            = new THREE.Texture(img);
     atlasTexture.magFilter  = THREE.NearestFilter;
     atlasTexture.minFilter  = THREE.NearestFilter;
@@ -508,12 +514,14 @@ async function init() {
     atlasH = img.naturalHeight;
     loadingBar.style.width  = '30%';
   } catch (e) {
+    alert("Texture Error: " + e.message + "\n\nIf you are double-clicking the HTML file from your desktop, browsers block texture loading for security. Run a local server (like Live Server in VS Code) to view it locally!");
     console.warn('Atlas not loaded — using fallback colors:', e.message);
   }
 
   loadingText.textContent = 'LOADING MAP';
   try {
-    const res = await fetch(BASE_URL + MAP_FILE);
+    const mapUrl = BASE_URL.startsWith('http') ? BASE_URL + MAP_FILE : MAP_FILE;
+    const res = await fetch(mapUrl);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     textureMap             = await res.json();
     loadingBar.style.width = '55%';
@@ -523,7 +531,8 @@ async function init() {
 
   loadingText.textContent = 'LOADING BLOCKS';
   try {
-    const res = await fetch(BASE_URL + DATA_FILE);
+    const dataUrl = BASE_URL.startsWith('http') ? BASE_URL + DATA_FILE : DATA_FILE;
+    const res = await fetch(dataUrl);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data             = await res.json();
     loadingBar.style.width = '60%';
